@@ -44,7 +44,7 @@
 
 - name: "FW [{{ env_name }}] | Logging de pacotes negados: {{ firewall_log_denied }}"
   ansible.builtin.command:
-    cmd: "firewall-cmd --set-log-denied={{ firewall_log_denied }} --permanent"
+    cmd: "firewall-cmd --set-log-denied={{ firewall_log_denied }}"
   register: _fw_log
   changed_when: "'success' in _fw_log.stdout"
 
