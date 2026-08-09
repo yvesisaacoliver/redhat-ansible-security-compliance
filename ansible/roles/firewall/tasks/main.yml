@@ -46,9 +46,5 @@
   ansible.builtin.command:
     cmd: "firewall-cmd --set-log-denied={{ firewall_log_denied }}"
   register: _fw_log
-  changed_when: "'success' in _fw_log.stdout"
-
-- name: "FW [{{ env_name }}] | Reload firewalld"
-  ansible.builtin.command:
-    cmd: firewall-cmd --reload
-  changed_when: true
+  changed_when: "'ALREADY_SET' not in _fw_log.stderr"
+  notify: reload firewalld
