@@ -9,12 +9,14 @@
     path: "{{ report_output_dir }}"
     state: directory
     mode: '0755'
-  delegate_to: localhost
   run_once: true
 
 - name: "REPORT [{{ env_name }}] | Coletar info do sistema"
   ansible.builtin.setup:
-    gather_subset: [hardware, network, distribution]
+    gather_subset:
+      - hardware
+      - network
+      - distribution
 
 - name: "REPORT [{{ env_name }}] | Dump SSH config"
   ansible.builtin.command: sshd -T
@@ -77,57 +79,68 @@
       cis_level: "{{ cis_level }}"
       timestamp: "{{ ansible_date_time.iso8601 }}"
       baseline: "{{ baseline_state | default({}) }}"
+
       checks:
         ssh_root_disabled:
           name: "SSH Root Login Disabled"
           status: "{{ 'PASS' if 'permitrootlogin no' in _rpt_sshd.stdout | lower else 'FAIL' }}"
           cis_ref: "CIS 5.2.10"
           category: "ssh"
+
         ssh_password_auth:
           name: "SSH Password Auth (policy: {{ ssh_password_auth }})"
           status: "{{ 'PASS' if ('passwordauthentication ' + ssh_password_auth) in _rpt_sshd.stdout | lower else 'FAIL' }}"
           cis_ref: "CIS 5.2.6"
           category: "ssh"
+
         ssh_empty_password:
           name: "SSH Empty Passwords Blocked"
           status: "{{ 'PASS' if 'permitemptypasswords no' in _rpt_sshd.stdout | lower else 'FAIL' }}"
           cis_ref: "CIS 5.2.9"
           category: "ssh"
+
         firewall_active:
           name: "Firewall Active"
           status: "{{ 'PASS' if _rpt_fw.stdout | default('') == 'running' else 'FAIL' }}"
           cis_ref: "CIS 3.4.1"
           category: "firewall"
+
         firewall_zone:
           name: "Firewall Zone (expected: {{ firewall_default_zone }})"
           status: "{{ 'PASS' if _rpt_fw_zone.stdout | default('') == firewall_default_zone else 'FAIL' }}"
           cis_ref: "CIS 3.4.2"
           category: "firewall"
+
         selinux_enforcing:
           name: "SELinux Enforcing"
           status: "{{ 'PASS' if _rpt_selinux.stdout == 'Enforcing' else 'FAIL' }}"
           cis_ref: "CIS 1.6.1"
           category: "selinux"
+
         auditd_running:
           name: "Auditd Active"
           status: "{{ 'PASS' if _rpt_auditd.stdout | default('') == 'active' else 'FAIL' }}"
           cis_ref: "CIS 4.1.1"
           category: "audit"
+
         audit_rules:
           name: "Audit Rules Configured"
           status: "{{ 'PASS' if (_rpt_audit_rules.stdout_lines | default([]) | length) > 0 else 'FAIL' }}"
           cis_ref: "CIS 4.1.3"
           category: "audit"
+
         password_policy:
           name: "Password Max Days ≤ {{ password_max_days }}"
           status: "{{ 'PASS' if (_rpt_pass_max.stdout | default('99999') | int) <= (password_max_days | int) else 'FAIL' }}"
           cis_ref: "CIS 5.5.1"
           category: "users"
+
         insights_registered:
           name: "Red Hat Insights Registered"
           status: "{{ 'PASS' if 'registered' in (_rpt_insights.stdout | default('') | lower) else 'FAIL' }}"
           cis_ref: "N/A"
           category: "insights"
+
         stig_banner:
           name: "STIG Login Banner"
           status: "{{ 'PASS' if _rpt_banner.stat.exists else ('N/A' if not (stig_banner_enabled | default(false)) else 'FAIL') }}"
@@ -139,5 +152,4 @@
     src: compliance-report.html.j2
     dest: "{{ report_output_dir }}/compliance-report-{{ env_name }}.html"
     mode: '0644'
-  delegate_to: localhost
   run_once: true
