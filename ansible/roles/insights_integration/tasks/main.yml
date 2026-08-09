@@ -1,4 +1,3 @@
----
 # ══════════════════════════════════════════════
 # Role: Red Hat Insights Integration
 # Registers hosts with Insights for vulnerability
@@ -20,14 +19,15 @@
   when: insights_enabled | bool
 
 - name: "INSIGHTS [{{ env_name }}] | Configurar grupo/tag por ambiente"
-  ansible.builtin.lineinfile:
-    path: /etc/insights-client/tags.yaml
-    line: |
+  ansible.builtin.copy:
+    dest: /etc/insights-client/tags.yaml
+    content: |
       group: {{ env_name }}
       environment: {{ env_name }}
       cis_level: {{ cis_level }}
       compliance: required
-    create: true
+    owner: root
+    group: root
     mode: '0644'
   when: insights_enabled | bool
 
