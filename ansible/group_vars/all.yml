@@ -1,0 +1,35 @@
+---
+# ══════════════════════════════════════════════
+# Global Variables — All Environments
+# Red Hat Ansible Compliance Demo
+# ══════════════════════════════════════════════
+
+ansible_user: ec2-user
+ansible_become: true
+ansible_become_method: sudo
+
+# ── Report ──────────────────────────────────
+report_output_dir: /tmp/compliance-reports
+report_company_name: "FinCorp S.A."
+
+# ── Insights ────────────────────────────────
+insights_enabled: true
+insights_display_name_prefix: "fincorp"
+
+# ── SELinux (same for all environments) ─────
+selinux_state: enforcing
+selinux_policy: targeted
+
+# ── Audit baseline (overridden per env) ─────
+audit_max_log_file: 50
+audit_space_left_action: email
+audit_watched_files:
+  - /etc/passwd
+  - /etc/shadow
+  - /etc/group
+  - /etc/gshadow
+  - /etc/sudoers
+
+# ── Allowed UID 0 ───────────────────────────
+allowed_uid0_users:
+  - root

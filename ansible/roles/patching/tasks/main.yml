@@ -1,0 +1,49 @@
+---
+# ══════════════════════════════════════════════
+# Role: Security Patching (CIS 1.9)
+# Dev=all+auto, Staging=security+auto, Prod=security+approval
+# ══════════════════════════════════════════════
+
+- name: "PATCH [{{ env_name }}] | Verificar updates de segurança"
+  ansible.builtin.command:
+    cmd: dnf check-update --security
+  register: _security_updates
+  changed_when: false
+  failed_when: _security_updates.rc not in [0, 100]
+
+- name: "PATCH [{{ env_name }}] | Contar updates pendentes"
+  ansible.builtin.set_fact:
+    _pending_count: "{{ _security_updates.stdout_lines | select('match', '^\\S+\\s+\\S+\\s+\\S+') | list | length }}"
+
+- name: "PATCH [{{ env_name }}] | {{ _pending_count }} updates pendentes"
+  ansible.builtin.debug:
+    msg: "{{ _pending_count }} security updates disponíveis"
+
+- name: "PATCH [{{ env_name }}] | Aplicar updates (auto_apply={{ patching_auto_apply }})"
+  ansible.builtin.dnf:
+    name: '*'
+    state: latest
+    security: "{{ patching_security_only }}"
+    update_only: true
+  register: _patching_result
+  when:
+    - _security_updates.rc == 100
+    - patching_auto_apply | bool
+
+- name: "PATCH [{{ env_name }}] | ⚠️  PROD — updates disponíveis mas requerem aprovação"
+  ansible.builtin.debug:
+    msg: |
+      ════════════════════════════════════════
+      ATENÇÃO: {{ _pending_count }} security updates pendentes
+      Ambiente PROD requer aprovação manual.
+      Rode com: --extra-vars "patching_auto_apply=true"
+      ════════════════════════════════════════
+  when:
+    - _security_updates.rc == 100
+    - not (patching_auto_apply | bool)
+
+- name: "PATCH [{{ env_name }}] | Verificar necessidade de reboot"
+  ansible.builtin.command: needs-restarting -r
+  register: _needs_restart
+  changed_when: false
+  failed_when: false

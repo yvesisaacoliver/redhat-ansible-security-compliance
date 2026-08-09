@@ -1,0 +1,8 @@
+---
+- name: restart auditd
+  ansible.builtin.command: service auditd restart
+
+- name: restart rsyslog
+  ansible.builtin.systemd:
+    name: rsyslog
+    state: restarted

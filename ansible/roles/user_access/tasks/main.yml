@@ -1,0 +1,101 @@
+---
+# ══════════════════════════════════════════════
+# Role: User & Access Control (CIS 5.4, 5.5, 6.2)
+# Dev=relaxed, Staging=strict, Prod=maximum
+# ══════════════════════════════════════════════
+
+# ── Password Policy ────────────────────────
+
+- name: "USERS [{{ env_name }}] | Password max days: {{ password_max_days }}"
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: '^PASS_MAX_DAYS'
+    line: "PASS_MAX_DAYS {{ password_max_days }}"
+
+- name: "USERS [{{ env_name }}] | Password min days: {{ password_min_days }}"
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: '^PASS_MIN_DAYS'
+    line: "PASS_MIN_DAYS {{ password_min_days }}"
+
+- name: "USERS [{{ env_name }}] | Password min length: {{ password_min_length }}"
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: '^PASS_MIN_LEN'
+    line: "PASS_MIN_LEN {{ password_min_length }}"
+
+- name: "USERS [{{ env_name }}] | Password warn age: {{ password_warn_age }}"
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: '^PASS_WARN_AGE'
+    line: "PASS_WARN_AGE {{ password_warn_age }}"
+
+# ── Audit UID 0 ────────────────────────────
+
+- name: "USERS [{{ env_name }}] | Encontrar contas com UID 0"
+  ansible.builtin.shell:
+    cmd: "awk -F: '($3 == 0) { print $1 }' /etc/passwd"
+  register: _uid0_users
+  changed_when: false
+
+- name: "USERS [{{ env_name }}] | ⚠️  UID 0 não autorizado: {{ item }}"
+  ansible.builtin.debug:
+    msg: "ALERTA: '{{ item }}' tem UID 0 e NÃO está na lista permitida"
+  loop: "{{ _uid0_users.stdout_lines }}"
+  when: item not in allowed_uid0_users
+
+# ── Sudo hardening ─────────────────────────
+
+- name: "USERS [{{ env_name }}] | Sudo requer senha: {{ sudo_require_password }}"
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers
+    regexp: '^.*NOPASSWD'
+    state: absent
+    validate: 'visudo -cf %s'
+  when: sudo_require_password | bool
+  failed_when: false
+
+- name: "USERS [{{ env_name }}] | Habilitar log do sudo"
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers
+    regexp: '^Defaults.*logfile'
+    line: 'Defaults logfile="/var/log/sudo.log"'
+    validate: 'visudo -cf %s'
+  when: sudo_log_enabled | bool
+
+# ── System accounts ───────────────────────
+
+- name: "USERS [{{ env_name }}] | Encontrar system accounts com shell"
+  ansible.builtin.shell:
+    cmd: "awk -F: '($3 < 1000 && $1 != \"root\" && $7 != \"/sbin/nologin\" && $7 != \"/bin/false\") { print $1 }' /etc/passwd"
+  register: _sys_with_shell
+  changed_when: false
+
+- name: "USERS [{{ env_name }}] | Bloquear shell de system accounts"
+  ansible.builtin.user:
+    name: "{{ item }}"
+    shell: /sbin/nologin
+  loop: "{{ _sys_with_shell.stdout_lines }}"
+  when: _sys_with_shell.stdout_lines | length > 0
+
+# ── STIG: Disable Ctrl+Alt+Del (prod only)
+- name: "USERS [{{ env_name }}] | STIG desabilitar Ctrl+Alt+Del"
+  ansible.builtin.systemd:
+    name: ctrl-alt-del.target
+    masked: true
+  when: stig_ctrl_alt_del_disabled | default(false)
+
+# ── STIG: Disable USB storage (prod only)
+- name: "USERS [{{ env_name }}] | STIG desabilitar USB storage"
+  ansible.builtin.copy:
+    content: "install usb-storage /bin/true"
+    dest: /etc/modprobe.d/usb-storage.conf
+    mode: '0644'
+  when: stig_usb_storage_disabled | default(false)
+
+# ── STIG: Disable core dumps (prod only)
+- name: "USERS [{{ env_name }}] | STIG desabilitar core dumps"
+  ansible.builtin.lineinfile:
+    path: /etc/security/limits.conf
+    line: "* hard core 0"
+  when: stig_core_dumps_disabled | default(false)

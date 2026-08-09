@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ report_company_name }} — {{ env_name | upper }} Compliance Report</title>
+  <style>
+    :root { --red: #c00; --green: #4caf50; --yellow: #ff9800; --fail: #f44336; --bg: #0f1115; --card: #1a1d23; --border: #2a2d35; --text: #e0e0e0; --muted: #888; }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--text); padding:1.5rem; }
+
+    .header { background:linear-gradient(135deg,var(--red) 0%,#8b0000 100%); padding:2rem; border-radius:12px; margin-bottom:1.5rem; display:flex; justify-content:space-between; align-items:center; }
+    .header-left .logo { font-weight:800; font-size:.75rem; letter-spacing:1.5px; text-transform:uppercase; color:rgba(255,255,255,.5); margin-bottom:.4rem; }
+    .header-left h1 { font-size:1.6rem; color:#fff; }
+    .header-left p { color:rgba(255,255,255,.7); font-size:.85rem; margin-top:.3rem; }
+    .env-badge { background:rgba(255,255,255,.15); color:#fff; padding:.6rem 1.5rem; border-radius:8px; text-align:center; }
+    .env-badge .env-name { font-size:1.4rem; font-weight:700; text-transform:uppercase; }
+    .env-badge .env-policy { font-size:.75rem; opacity:.8; }
+
+    .summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:1rem; margin-bottom:1.5rem; }
+    .s-card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:1.2rem; text-align:center; }
+    .s-card .num { font-size:2.2rem; font-weight:700; }
+    .s-card .lbl { font-size:.78rem; color:var(--muted); margin-top:.2rem; }
+    .c-pass { color:var(--green); } .c-fail { color:var(--fail); } .c-warn { color:var(--yellow); } .c-info { color:#64b5f6; }
+
+    .host { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:1.5rem; margin-bottom:1.2rem; }
+    .host-head { display:flex; justify-content:space-between; align-items:center; padding-bottom:1rem; border-bottom:1px solid var(--border); margin-bottom:1rem; }
+    .host-name { font-size:1.2rem; font-weight:600; }
+    .host-meta { font-size:.75rem; color:var(--muted); }
+    .host-score { font-size:1.3rem; font-weight:700; padding:.3rem .7rem; border-radius:8px; }
+    .sc-high { background:rgba(76,175,80,.12); color:var(--green); }
+    .sc-mid { background:rgba(255,152,0,.12); color:var(--yellow); }
+    .sc-low { background:rgba(244,67,54,.12); color:var(--fail); }
+
+    .checks { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:.6rem; }
+    .chk { display:flex; align-items:center; gap:.7rem; padding:.7rem; background:#22252b; border-radius:7px; }
+    .chk-icon { width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.8rem; font-weight:700; flex-shrink:0; }
+    .i-pass { background:rgba(76,175,80,.18); color:var(--green); }
+    .i-fail { background:rgba(244,67,54,.18); color:var(--fail); }
+    .i-na { background:rgba(100,100,100,.18); color:#999; }
+    .chk-text .chk-name { font-size:.85rem; }
+    .chk-text .chk-ref { font-size:.65rem; color:#666; }
+
+    .baseline { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:1.2rem; margin-bottom:1.2rem; }
+    .baseline h3 { font-size:.9rem; color:var(--yellow); margin-bottom:.8rem; }
+    .bl-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:.5rem; }
+    .bl-item { display:flex; justify-content:space-between; padding:.4rem .6rem; background:#22252b; border-radius:5px; font-size:.8rem; }
+    .bl-label { color:var(--muted); }
+
+    .footer { text-align:center; padding:1.5rem; color:#444; font-size:.75rem; }
+    .footer a { color:var(--red); text-decoration:none; }
+
+    @media print { body { background:#fff; color:#333; } .header { print-color-adjust:exact; -webkit-print-color-adjust:exact; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-left">
+      <div class="logo">Red Hat Ansible Automation Platform</div>
+      <h1>Security Compliance Report</h1>
+      <p>{{ report_company_name }} — {{ ansible_date_time.date }} {{ ansible_date_time.time }} UTC</p>
+    </div>
+    <div class="env-badge">
+      <div class="env-name">{{ env_name }}</div>
+      <div class="env-policy">{{ cis_level | replace('_', ' + ') | upper }}</div>
+    </div>
+  </div>
+
+  {# ── Summary cards ─────────────────────── #}
+  {% set all_hosts = ansible_play_hosts %}
+  {% set ns = namespace(tp=0, tf=0, tc=0) %}
+  {% for host in all_hosts %}
+    {% set hc = hostvars[host]['host_compliance'] %}
+    {% for ck, cv in hc.checks.items() %}
+      {% if cv.status != 'N/A' %}
+        {% set ns.tc = ns.tc + 1 %}
+        {% if cv.status == 'PASS' %}{% set ns.tp = ns.tp + 1 %}{% else %}{% set ns.tf = ns.tf + 1 %}{% endif %}
+      {% endif %}
+    {% endfor %}
+  {% endfor %}
+  {% set pct = ((ns.tp / ns.tc) * 100) | round(0) if ns.tc > 0 else 0 %}
+
+  <div class="summary">
+    <div class="s-card"><div class="num c-info">{{ all_hosts | length }}</div><div class="lbl">Servers</div></div>
+    <div class="s-card"><div class="num c-pass">{{ ns.tp }}</div><div class="lbl">Passed</div></div>
+    <div class="s-card"><div class="num c-fail">{{ ns.tf }}</div><div class="lbl">Failed</div></div>
+    <div class="s-card"><div class="num {% if pct >= 80 %}c-pass{% elif pct >= 50 %}c-warn{% else %}c-fail{% endif %}">{{ pct }}%</div><div class="lbl">Compliance</div></div>
+  </div>
+
+  {# ── Baseline (before hardening) ────────── #}
+  {% for host in all_hosts %}
+    {% set bl = hostvars[host].get('baseline_state', {}) %}
+    {% if bl %}
+    <div class="baseline">
+      <h3>⚡ Pre-Hardening Baseline — {{ hostvars[host]['host_compliance'].hostname }}</h3>
+      <div class="bl-grid">
+        <div class="bl-item"><span class="bl-label">SSH Root Login</span><span>{{ bl.ssh_root | default('unknown') }}</span></div>
+        <div class="bl-item"><span class="bl-label">Firewalld</span><span>{{ bl.firewall | default('unknown') }}</span></div>
+        <div class="bl-item"><span class="bl-label">SELinux</span><span>{{ bl.selinux | default('unknown') }}</span></div>
+        <div class="bl-item"><span class="bl-label">Auditd</span><span>{{ bl.auditd | default('unknown') }}</span></div>
+        <div class="bl-item"><span class="bl-label">Pending Updates</span><span>{{ bl.pending_updates | default('unknown') }}</span></div>
+        <div class="bl-item"><span class="bl-label">UID 0 Accounts</span><span>{{ (bl.uid0_accounts | default([])) | join(', ') }}</span></div>
+      </div>
+    </div>
+    {% endif %}
+  {% endfor %}
+
+  {# ── Per-host results ──────────────────── #}
+  {% for host in all_hosts %}
+    {% set hc = hostvars[host]['host_compliance'] %}
+    {% set hns = namespace(hp=0, ht=0) %}
+    {% for ck, cv in hc.checks.items() %}
+      {% if cv.status != 'N/A' %}
+        {% set hns.ht = hns.ht + 1 %}
+        {% if cv.status == 'PASS' %}{% set hns.hp = hns.hp + 1 %}{% endif %}
+      {% endif %}
+    {% endfor %}
+    {% set hp = ((hns.hp / hns.ht) * 100) | round(0) if hns.ht > 0 else 0 %}
+
+    <div class="host">
+      <div class="host-head">
+        <div>
+          <div class="host-name">{{ hc.hostname }}</div>
+          <div class="host-meta">{{ hc.os }} · {{ hc.ip }} · {{ hc.kernel }}</div>
+        </div>
+        <div class="host-score {% if hp >= 80 %}sc-high{% elif hp >= 50 %}sc-mid{% else %}sc-low{% endif %}">{{ hp }}%</div>
+      </div>
+      <div class="checks">
+        {% for ck, cv in hc.checks.items() %}
+        <div class="chk">
+          <div class="chk-icon {% if cv.status == 'PASS' %}i-pass{% elif cv.status == 'N/A' %}i-na{% else %}i-fail{% endif %}">
+            {% if cv.status == 'PASS' %}✓{% elif cv.status == 'N/A' %}—{% else %}✗{% endif %}
+          </div>
+          <div class="chk-text">
+            <div class="chk-name">{{ cv.name }}</div>
+            <div class="chk-ref">{{ cv.cis_ref }} · {{ cv.category }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  {% endfor %}
+
+  <div class="footer">
+    Automated by <a href="https://www.redhat.com/en/technologies/management/ansible">Red Hat Ansible Automation Platform</a>
+    · Red Hat Insights · CIS Benchmark v3.0 / DISA STIG for RHEL 9
+  </div>
+</body>
+</html>

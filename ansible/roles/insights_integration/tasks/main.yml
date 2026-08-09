@@ -1,0 +1,58 @@
+---
+# ══════════════════════════════════════════════
+# Role: Red Hat Insights Integration
+# Registers hosts with Insights for vulnerability
+# scanning and automated remediation
+# ══════════════════════════════════════════════
+
+- name: "INSIGHTS [{{ env_name }}] | Instalar insights-client"
+  ansible.builtin.dnf:
+    name: insights-client
+    state: present
+  when: insights_enabled | bool
+
+- name: "INSIGHTS [{{ env_name }}] | Configurar display name"
+  ansible.builtin.lineinfile:
+    path: /etc/insights-client/insights-client.conf
+    regexp: '^#?display_name'
+    line: "display_name={{ insights_display_name_prefix }}-{{ env_name }}-{{ inventory_hostname }}"
+    create: true
+  when: insights_enabled | bool
+
+- name: "INSIGHTS [{{ env_name }}] | Configurar grupo/tag por ambiente"
+  ansible.builtin.lineinfile:
+    path: /etc/insights-client/tags.yaml
+    line: |
+      group: {{ env_name }}
+      environment: {{ env_name }}
+      cis_level: {{ cis_level }}
+      compliance: required
+    create: true
+    mode: '0644'
+  when: insights_enabled | bool
+
+- name: "INSIGHTS [{{ env_name }}] | Registrar no Red Hat Insights"
+  ansible.builtin.command:
+    cmd: insights-client --register
+  register: _insights_register
+  changed_when: "'Successfully registered' in _insights_register.stdout"
+  failed_when: false
+  when: insights_enabled | bool
+
+- name: "INSIGHTS [{{ env_name }}] | Executar primeiro scan"
+  ansible.builtin.command:
+    cmd: insights-client
+  register: _insights_scan
+  changed_when: false
+  failed_when: false
+  when:
+    - insights_enabled | bool
+    - _insights_register is changed or _insights_register is skipped
+
+- name: "INSIGHTS [{{ env_name }}] | Status do registro"
+  ansible.builtin.debug:
+    msg: >
+      Insights: {{ 'Registrado e scan executado' if _insights_register is changed
+      else 'Já registrado previamente' }}
+      → Dashboard: https://console.redhat.com/insights
+  when: insights_enabled | bool

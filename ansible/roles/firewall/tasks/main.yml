@@ -1,0 +1,54 @@
+---
+# ══════════════════════════════════════════════
+# Role: Firewall Configuration (CIS 3.4)
+# Dev=permissive, Staging=restricted, Prod=drop-all
+# ══════════════════════════════════════════════
+
+- name: "FW [{{ env_name }}] | Instalar firewalld"
+  ansible.builtin.dnf:
+    name: firewalld
+    state: present
+
+- name: "FW [{{ env_name }}] | Habilitar firewalld"
+  ansible.builtin.systemd:
+    name: firewalld
+    state: started
+    enabled: true
+
+- name: "FW [{{ env_name }}] | Definir zona padrão: {{ firewall_default_zone }}"
+  ansible.builtin.command:
+    cmd: "firewall-cmd --set-default-zone={{ firewall_default_zone }}"
+  register: _fw_zone
+  changed_when: "'ZONE_ALREADY_SET' not in _fw_zone.stderr"
+  failed_when: false
+
+- name: "FW [{{ env_name }}] | Permitir serviços: {{ firewall_allowed_services | join(', ') }}"
+  ansible.posix.firewalld:
+    service: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: enabled
+    zone: "{{ firewall_default_zone }}"
+  loop: "{{ firewall_allowed_services }}"
+
+- name: "FW [{{ env_name }}] | Remover serviços desnecessários"
+  ansible.posix.firewalld:
+    service: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: disabled
+    zone: "{{ firewall_default_zone }}"
+  loop: "{{ firewall_remove_services }}"
+  when: firewall_remove_services | length > 0
+  failed_when: false
+
+- name: "FW [{{ env_name }}] | Logging de pacotes negados: {{ firewall_log_denied }}"
+  ansible.builtin.command:
+    cmd: "firewall-cmd --set-log-denied={{ firewall_log_denied }} --permanent"
+  register: _fw_log
+  changed_when: "'success' in _fw_log.stdout"
+
+- name: "FW [{{ env_name }}] | Reload firewalld"
+  ansible.builtin.command:
+    cmd: firewall-cmd --reload
+  changed_when: true

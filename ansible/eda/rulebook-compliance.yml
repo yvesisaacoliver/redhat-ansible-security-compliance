@@ -1,0 +1,53 @@
+---
+# ══════════════════════════════════════════════
+# Event-Driven Ansible — Auto Compliance
+# Trigger 1: New host joins → auto-harden
+# Trigger 2: Drift detected → auto-remediate
+# ══════════════════════════════════════════════
+
+- name: "Auto-Compliance: New Host Provisioning"
+  hosts: all
+  sources:
+    - ansible.eda.webhook:
+        host: 0.0.0.0
+        port: 5000
+
+  rules:
+    - name: "New host in DEV → apply CIS Level 1"
+      condition: event.payload.action == "new_host" and event.payload.environment == "dev"
+      action:
+        run_job_template:
+          name: "Security Compliance — DEV"
+          organization: "Default"
+
+    - name: "New host in STAGING → apply CIS Level 2"
+      condition: event.payload.action == "new_host" and event.payload.environment == "staging"
+      action:
+        run_job_template:
+          name: "Security Compliance — STAGING"
+          organization: "Default"
+
+    - name: "New host in PROD → apply CIS Level 2 + STIG"
+      condition: event.payload.action == "new_host" and event.payload.environment == "prod"
+      action:
+        run_job_template:
+          name: "Security Compliance — PROD"
+          organization: "Default"
+
+    - name: "Drift detected → auto-remediate"
+      condition: event.payload.action == "drift_detected"
+      action:
+        run_job_template:
+          name: "Security Compliance — {{ event.payload.environment | upper }}"
+          organization: "Default"
+
+# ── Test commands ─────────────────────────
+# Simular novo host em dev:
+#   curl -X POST http://CONTROLLER:5000/endpoint \
+#     -H "Content-Type: application/json" \
+#     -d '{"action":"new_host","environment":"dev","hostname":"dev-3","ip":"10.0.10.50"}'
+#
+# Simular drift em prod:
+#   curl -X POST http://CONTROLLER:5000/endpoint \
+#     -H "Content-Type: application/json" \
+#     -d '{"action":"drift_detected","environment":"prod","hostname":"prod-1","detail":"SSH root login re-enabled"}'

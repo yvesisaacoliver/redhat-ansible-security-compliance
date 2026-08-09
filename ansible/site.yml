@@ -1,0 +1,83 @@
+---
+# ══════════════════════════════════════════════════════════
+# Enterprise Security Hardening & Compliance
+# Red Hat Ansible Automation Platform
+# ──────────────────────────────────────────────────────────
+# Policies: Dev=CIS L1 | Staging=CIS L2 | Prod=CIS L2+STIG
+# Products: AAP + RHEL 9 + Red Hat Insights
+# ══════════════════════════════════════════════════════════
+
+- name: "Security Compliance — {{ env_name | upper }} ({{ cis_level }})"
+  hosts: all
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: "INIT | Verificar OS suportado"
+      ansible.builtin.assert:
+        that: ansible_distribution in ['RedHat', 'CentOS']
+        fail_msg: "Apenas RHEL/CentOS suportado"
+        success_msg: "✓ {{ ansible_distribution }} {{ ansible_distribution_version }}"
+
+    - name: "INIT | Informações do host"
+      ansible.builtin.debug:
+        msg: |
+          ══════════════════════════════════════════
+          Host:        {{ inventory_hostname }}
+          IP:          {{ ansible_default_ipv4.address | default('N/A') }}
+          OS:          {{ ansible_distribution }} {{ ansible_distribution_version }}
+          Ambiente:    {{ env_name | upper }}
+          Política:    {{ cis_level | upper }}
+          Timestamp:   {{ ansible_date_time.iso8601 }}
+          ══════════════════════════════════════════
+
+  roles:
+    - role: baseline_check
+      tags: [baseline, always]
+
+    - role: ssh_hardening
+      tags: [ssh, hardening]
+
+    - role: firewall
+      tags: [firewall, network]
+
+    - role: selinux
+      tags: [selinux, hardening]
+
+    - role: patching
+      tags: [patching, updates]
+
+    - role: user_access
+      tags: [users, access]
+
+    - role: audit_logging
+      tags: [audit, logging]
+
+    - role: insights_integration
+      tags: [insights, monitoring]
+
+    - role: compliance_report
+      tags: [report]
+
+  post_tasks:
+    - name: "RESULTADO | Resumo final — {{ inventory_hostname }}"
+      ansible.builtin.debug:
+        msg: |
+          ══════════════════════════════════════════
+          ✅ HARDENING COMPLETO
+          ──────────────────────────────────────────
+          Host:        {{ inventory_hostname }}
+          Ambiente:    {{ env_name | upper }}
+          Política:    {{ cis_level | replace('_', ' + ') | upper }}
+          ──────────────────────────────────────────
+          SSH:         ✅ Root={{ ssh_permit_root_login }} | PassAuth={{ ssh_password_auth }}
+          Firewall:    ✅ Zone={{ firewall_default_zone }} | Log={{ firewall_log_denied }}
+          SELinux:     ✅ Enforcing
+          Patching:    {{ '✅ Aplicado' if patching_auto_apply else '⚠️  Requer aprovação' }}
+          Users:       ✅ MaxDays={{ password_max_days }} | MinLen={{ password_min_length }}
+          Audit:       ✅ Regras configuradas
+          Insights:    ✅ Registrado
+          ──────────────────────────────────────────
+          Relatório:   {{ report_output_dir }}/compliance-report-{{ env_name }}.html
+          Dashboard:   https://console.redhat.com/insights
+          ══════════════════════════════════════════

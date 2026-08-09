@@ -1,0 +1,86 @@
+---
+# ══════════════════════════════════════════════
+# Role: SSH Hardening (CIS 5.2)
+# Policy-driven: adapts per environment
+# ══════════════════════════════════════════════
+
+- name: "SSH [{{ env_name }}] | Desabilitar root login"
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitRootLogin'
+    line: "PermitRootLogin {{ ssh_permit_root_login }}"
+  notify: restart sshd
+
+- name: "SSH [{{ env_name }}] | Configurar password authentication"
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PasswordAuthentication'
+    line: "PasswordAuthentication {{ ssh_password_auth }}"
+  notify: restart sshd
+
+- name: "SSH [{{ env_name }}] | Limitar tentativas (MaxAuthTries={{ ssh_max_auth_tries }})"
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?MaxAuthTries'
+    line: "MaxAuthTries {{ ssh_max_auth_tries }}"
+  notify: restart sshd
+
+- name: "SSH [{{ env_name }}] | Timeout de sessão ({{ ssh_client_alive_interval }}s)"
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?ClientAliveInterval'
+    line: "ClientAliveInterval {{ ssh_client_alive_interval }}"
+  notify: restart sshd
+
+- name: "SSH [{{ env_name }}] | ClientAliveCountMax"
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?ClientAliveCountMax'
+    line: "ClientAliveCountMax {{ ssh_client_alive_count_max }}"
+  notify: restart sshd
+
+- name: "SSH [{{ env_name }}] | X11 Forwarding"
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?X11Forwarding'
+    line: "X11Forwarding {{ ssh_x11_forwarding }}"
+  notify: restart sshd
+
+- name: "SSH [{{ env_name }}] | Proibir senhas vazias"
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitEmptyPasswords'
+    line: "PermitEmptyPasswords {{ ssh_permit_empty_passwords }}"
+  notify: restart sshd
+
+- name: "SSH [{{ env_name }}] | Log level ({{ ssh_log_level }})"
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?LogLevel'
+    line: "LogLevel {{ ssh_log_level }}"
+  notify: restart sshd
+
+- name: "SSH [{{ env_name }}] | Restringir usuários permitidos"
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?AllowUsers'
+    line: "AllowUsers {{ ssh_allowed_users }}"
+  notify: restart sshd
+  when: ssh_allowed_users | length > 0
+
+# ── STIG extras (prod only) ────────────────
+- name: "SSH [{{ env_name }}] | STIG banner de aviso"
+  ansible.builtin.copy:
+    content: "{{ stig_banner_text }}"
+    dest: /etc/issue.net
+    mode: '0644'
+  when: stig_banner_enabled | default(false)
+  notify: restart sshd
+
+- name: "SSH [{{ env_name }}] | STIG habilitar banner"
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?Banner'
+    line: "Banner /etc/issue.net"
+  when: stig_banner_enabled | default(false)
+  notify: restart sshd

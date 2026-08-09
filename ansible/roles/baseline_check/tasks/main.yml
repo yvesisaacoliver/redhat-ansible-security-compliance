@@ -1,0 +1,74 @@
+---
+# ══════════════════════════════════════════════
+# Role: Pre-Hardening Baseline Check
+# Captures current state BEFORE remediation
+# Used for before/after comparison in reports
+# ══════════════════════════════════════════════
+
+- name: "BASELINE [{{ env_name }}] | SSH root login status"
+  ansible.builtin.shell: grep -i '^PermitRootLogin' /etc/ssh/sshd_config || echo 'PermitRootLogin not set'
+  register: _bl_ssh_root
+  changed_when: false
+
+- name: "BASELINE [{{ env_name }}] | SSH password auth status"
+  ansible.builtin.shell: grep -i '^PasswordAuthentication' /etc/ssh/sshd_config || echo 'PasswordAuthentication not set'
+  register: _bl_ssh_pass
+  changed_when: false
+
+- name: "BASELINE [{{ env_name }}] | Firewalld status"
+  ansible.builtin.command: systemctl is-active firewalld
+  register: _bl_firewall
+  changed_when: false
+  failed_when: false
+
+- name: "BASELINE [{{ env_name }}] | SELinux status"
+  ansible.builtin.command: getenforce
+  register: _bl_selinux
+  changed_when: false
+
+- name: "BASELINE [{{ env_name }}] | Auditd status"
+  ansible.builtin.command: systemctl is-active auditd
+  register: _bl_auditd
+  changed_when: false
+  failed_when: false
+
+- name: "BASELINE [{{ env_name }}] | Pending security updates"
+  ansible.builtin.command: dnf check-update --security
+  register: _bl_updates
+  changed_when: false
+  failed_when: _bl_updates.rc not in [0, 100]
+
+- name: "BASELINE [{{ env_name }}] | Password policy"
+  ansible.builtin.shell: grep -E '^PASS_MAX_DAYS|^PASS_MIN_LEN' /etc/login.defs
+  register: _bl_password
+  changed_when: false
+
+- name: "BASELINE [{{ env_name }}] | UID 0 accounts"
+  ansible.builtin.shell: "awk -F: '($3 == 0) { print $1 }' /etc/passwd"
+  register: _bl_uid0
+  changed_when: false
+
+- name: "BASELINE [{{ env_name }}] | Compilar baseline"
+  ansible.builtin.set_fact:
+    baseline_state:
+      ssh_root: "{{ _bl_ssh_root.stdout }}"
+      ssh_password: "{{ _bl_ssh_pass.stdout }}"
+      firewall: "{{ _bl_firewall.stdout | default('inactive') }}"
+      selinux: "{{ _bl_selinux.stdout }}"
+      auditd: "{{ _bl_auditd.stdout | default('inactive') }}"
+      pending_updates: "{{ 'yes' if _bl_updates.rc == 100 else 'no' }}"
+      password_policy: "{{ _bl_password.stdout }}"
+      uid0_accounts: "{{ _bl_uid0.stdout_lines }}"
+
+- name: "BASELINE [{{ env_name }}] | Estado pré-hardening"
+  ansible.builtin.debug:
+    msg: |
+      ══════ BASELINE: {{ inventory_hostname }} ({{ env_name }}) ══════
+      SSH Root Login:     {{ baseline_state.ssh_root }}
+      SSH Password Auth:  {{ baseline_state.ssh_password }}
+      Firewalld:          {{ baseline_state.firewall }}
+      SELinux:            {{ baseline_state.selinux }}
+      Auditd:             {{ baseline_state.auditd }}
+      Pending Updates:    {{ baseline_state.pending_updates }}
+      UID 0 Accounts:     {{ baseline_state.uid0_accounts | join(', ') }}
+      ══════════════════════════════════════════════════════

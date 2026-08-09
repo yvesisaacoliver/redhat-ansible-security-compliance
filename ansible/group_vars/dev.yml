@@ -1,0 +1,52 @@
+---
+# ══════════════════════════════════════════════
+# DEV — CIS Level 1 (Baseline)
+# More permissive for developer productivity
+# ══════════════════════════════════════════════
+
+# ── SSH ─────────────────────────────────────
+ssh_permit_root_login: "no"
+ssh_password_auth: "yes"               # devs may need password auth
+ssh_max_auth_tries: 6
+ssh_client_alive_interval: 600         # 10 min timeout
+ssh_client_alive_count_max: 3
+ssh_x11_forwarding: "yes"             # devs may need X11
+ssh_permit_empty_passwords: "no"
+ssh_log_level: "INFO"
+ssh_allowed_users: ""                  # no user restriction
+
+# ── Firewall ────────────────────────────────
+firewall_default_zone: "public"
+firewall_allowed_services:
+  - ssh
+  - http
+  - https
+  - cockpit                            # server management UI for devs
+firewall_remove_services: []           # don't remove anything in dev
+firewall_log_denied: "unicast"         # minimal logging
+
+# ── Password Policy ────────────────────────
+password_max_days: 90
+password_min_days: 1
+password_min_length: 8
+password_warn_age: 14
+password_remember: 3
+
+# ── User Access ─────────────────────────────
+sudo_require_password: false           # devs can sudo without password
+sudo_log_enabled: true
+lock_inactive_users: false             # don't lock inactive in dev
+
+# ── Patching ────────────────────────────────
+patching_enabled: true
+patching_security_only: false          # all updates in dev
+patching_auto_apply: true              # no approval needed
+
+# ── Audit (minimal) ────────────────────────
+audit_identity_changes: true
+audit_login_events: true
+audit_privileged_commands: false       # not in dev
+audit_network_changes: false           # not in dev
+audit_kernel_modules: false            # not in dev
+audit_sudo_changes: true
+audit_time_changes: true

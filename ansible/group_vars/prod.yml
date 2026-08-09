@@ -1,0 +1,66 @@
+---
+# ══════════════════════════════════════════════
+# PROD — CIS Level 2 + STIG (Maximum Security)
+# Regulatory compliance, full auditability
+# ══════════════════════════════════════════════
+
+# ── SSH ─────────────────────────────────────
+ssh_permit_root_login: "no"
+ssh_password_auth: "no"                # key-only, no exceptions
+ssh_max_auth_tries: 3
+ssh_client_alive_interval: 120         # 2 min timeout — strict
+ssh_client_alive_count_max: 1
+ssh_x11_forwarding: "no"
+ssh_permit_empty_passwords: "no"
+ssh_log_level: "VERBOSE"
+ssh_allowed_users: "ec2-user sre-admin" # only specific users allowed
+
+# ── Firewall ────────────────────────────────
+firewall_default_zone: "drop"          # deny all by default
+firewall_allowed_services:
+  - ssh
+  - https
+firewall_remove_services:
+  - cockpit
+  - dhcpv6-client
+  - http
+firewall_log_denied: "all"
+
+# ── Password Policy ────────────────────────
+password_max_days: 30                  # aggressive rotation
+password_min_days: 7
+password_min_length: 14
+password_warn_age: 14
+password_remember: 12                  # remember last 12 passwords
+
+# ── User Access ─────────────────────────────
+sudo_require_password: true
+sudo_log_enabled: true
+lock_inactive_users: true
+inactive_lock_days: 30                 # lock after 30 days inactive
+
+# ── Patching ────────────────────────────────
+patching_enabled: true
+patching_security_only: true           # security only in prod
+patching_auto_apply: false             # REQUIRES APPROVAL — flag only
+
+# ── Audit (full STIG coverage) ─────────────
+audit_identity_changes: true
+audit_login_events: true
+audit_privileged_commands: true
+audit_network_changes: true            # STIG: track network config changes
+audit_kernel_modules: true             # STIG: track module loading
+audit_sudo_changes: true
+audit_time_changes: true
+
+# ── STIG extras ────────────────────────────
+stig_banner_enabled: true
+stig_banner_text: |
+  ═══════════════════════════════════════════════════════
+  WARNING: This system is for authorized use only.
+  All activity is monitored and recorded.
+  Unauthorized access will be prosecuted.
+  ═══════════════════════════════════════════════════════
+stig_usb_storage_disabled: true
+stig_core_dumps_disabled: true
+stig_ctrl_alt_del_disabled: true

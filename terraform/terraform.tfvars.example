@@ -1,0 +1,5 @@
+aws_region       = "us-east-1"
+key_name         = "ansible-project"
+private_key_path = "C:/Users/isaac/OneDrive/Documentos/Red Hat interview/redhat-ansible-demo/keys/ansible-project.pem"
+my_ip            = "152.234.124.49/32"
+rhel9_ami        = "ami-0225644bfadc204f7"

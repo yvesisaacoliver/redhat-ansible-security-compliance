@@ -1,0 +1,141 @@
+---
+# ══════════════════════════════════════════════
+# Role: Audit & Logging (CIS 4.1, 4.2)
+# Dev=basic, Staging=expanded, Prod=full STIG
+# ══════════════════════════════════════════════
+
+- name: "AUDIT [{{ env_name }}] | Instalar auditd"
+  ansible.builtin.dnf:
+    name: [audit, audit-libs]
+    state: present
+
+- name: "AUDIT [{{ env_name }}] | Habilitar auditd"
+  ansible.builtin.systemd:
+    name: auditd
+    state: started
+    enabled: true
+
+- name: "AUDIT [{{ env_name }}] | Configurar max log file"
+  ansible.builtin.lineinfile:
+    path: /etc/audit/auditd.conf
+    regexp: '^max_log_file '
+    line: "max_log_file = {{ audit_max_log_file }}"
+  notify: restart auditd
+
+- name: "AUDIT [{{ env_name }}] | Space left action"
+  ansible.builtin.lineinfile:
+    path: /etc/audit/auditd.conf
+    regexp: '^space_left_action'
+    line: "space_left_action = {{ audit_space_left_action }}"
+  notify: restart auditd
+
+# ── Identity changes (ALL environments) ────
+
+- name: "AUDIT [{{ env_name }}] | Monitorar arquivos de identidade"
+  ansible.builtin.lineinfile:
+    path: /etc/audit/rules.d/compliance.rules
+    line: "-w {{ item }} -p wa -k identity_changes"
+    create: true
+    mode: '0640'
+  loop: "{{ audit_watched_files }}"
+  when: audit_identity_changes | bool
+  notify: restart auditd
+
+# ── Login events (ALL environments) ────────
+
+- name: "AUDIT [{{ env_name }}] | Monitorar login/logout"
+  ansible.builtin.lineinfile:
+    path: /etc/audit/rules.d/compliance.rules
+    line: "{{ item }}"
+    create: true
+    mode: '0640'
+  loop:
+    - "-w /var/log/lastlog -p wa -k logins"
+    - "-w /var/run/faillock -p wa -k logins"
+    - "-w /var/log/wtmp -p wa -k logins"
+    - "-w /var/log/btmp -p wa -k logins"
+  when: audit_login_events | bool
+  notify: restart auditd
+
+# ── Time changes (ALL environments) ───────
+
+- name: "AUDIT [{{ env_name }}] | Monitorar mudanças de horário"
+  ansible.builtin.lineinfile:
+    path: /etc/audit/rules.d/compliance.rules
+    line: "-a always,exit -F arch=b64 -S adjtimex -S settimeofday -k time-change"
+    create: true
+    mode: '0640'
+  when: audit_time_changes | bool
+  notify: restart auditd
+
+# ── Sudo changes (ALL environments) ───────
+
+- name: "AUDIT [{{ env_name }}] | Monitorar sudoers"
+  ansible.builtin.lineinfile:
+    path: /etc/audit/rules.d/compliance.rules
+    line: "-w /etc/sudoers -p wa -k sudoers_changes"
+    create: true
+    mode: '0640'
+  when: audit_sudo_changes | bool
+  notify: restart auditd
+
+# ── Privileged commands (staging + prod) ───
+
+- name: "AUDIT [{{ env_name }}] | Monitorar comandos privilegiados"
+  ansible.builtin.lineinfile:
+    path: /etc/audit/rules.d/compliance.rules
+    line: "-a always,exit -F path={{ item }} -F perm=x -F auid>=1000 -F auid!=4294967295 -k privileged"
+    create: true
+    mode: '0640'
+  loop:
+    - /usr/bin/sudo
+    - /usr/bin/su
+    - /usr/bin/passwd
+    - /usr/bin/chage
+  when: audit_privileged_commands | bool
+  notify: restart auditd
+
+# ── Network changes (prod only — STIG) ────
+
+- name: "AUDIT [{{ env_name }}] | STIG monitorar mudanças de rede"
+  ansible.builtin.lineinfile:
+    path: /etc/audit/rules.d/compliance.rules
+    line: "{{ item }}"
+    create: true
+    mode: '0640'
+  loop:
+    - "-a always,exit -F arch=b64 -S sethostname -S setdomainname -k network-change"
+    - "-w /etc/hosts -p wa -k network-change"
+    - "-w /etc/sysconfig/network -p wa -k network-change"
+  when: audit_network_changes | bool
+  notify: restart auditd
+
+# ── Kernel modules (prod only — STIG) ─────
+
+- name: "AUDIT [{{ env_name }}] | STIG monitorar kernel modules"
+  ansible.builtin.lineinfile:
+    path: /etc/audit/rules.d/compliance.rules
+    line: "{{ item }}"
+    create: true
+    mode: '0640'
+  loop:
+    - "-w /sbin/insmod -p x -k module-change"
+    - "-w /sbin/rmmod -p x -k module-change"
+    - "-w /sbin/modprobe -p x -k module-change"
+  when: audit_kernel_modules | bool
+  notify: restart auditd
+
+# ── rsyslog ────────────────────────────────
+
+- name: "AUDIT [{{ env_name }}] | Habilitar rsyslog"
+  ansible.builtin.systemd:
+    name: rsyslog
+    state: started
+    enabled: true
+
+- name: "AUDIT [{{ env_name }}] | Permissões de log"
+  ansible.builtin.lineinfile:
+    path: /etc/rsyslog.conf
+    regexp: '^\$FileCreateMode'
+    line: '$FileCreateMode 0640'
+  notify: restart rsyslog

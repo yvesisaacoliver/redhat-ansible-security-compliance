@@ -1,0 +1,54 @@
+---
+# ══════════════════════════════════════════════
+# STAGING — CIS Level 2 (Hardened)
+# Mirrors production policy for validation
+# ══════════════════════════════════════════════
+
+# ── SSH ─────────────────────────────────────
+ssh_permit_root_login: "no"
+ssh_password_auth: "no"                # key-only
+ssh_max_auth_tries: 3
+ssh_client_alive_interval: 300         # 5 min timeout
+ssh_client_alive_count_max: 2
+ssh_x11_forwarding: "no"
+ssh_permit_empty_passwords: "no"
+ssh_log_level: "VERBOSE"
+ssh_allowed_users: ""
+
+# ── Firewall ────────────────────────────────
+firewall_default_zone: "public"
+firewall_allowed_services:
+  - ssh
+  - https
+firewall_remove_services:
+  - cockpit
+  - dhcpv6-client
+  - http                               # no plain HTTP in staging
+firewall_log_denied: "all"
+
+# ── Password Policy ────────────────────────
+password_max_days: 60
+password_min_days: 7
+password_min_length: 12
+password_warn_age: 14
+password_remember: 5
+
+# ── User Access ─────────────────────────────
+sudo_require_password: true
+sudo_log_enabled: true
+lock_inactive_users: true
+inactive_lock_days: 45
+
+# ── Patching ────────────────────────────────
+patching_enabled: true
+patching_security_only: true
+patching_auto_apply: true              # auto in staging, notify team
+
+# ── Audit (expanded) ──────────────────────
+audit_identity_changes: true
+audit_login_events: true
+audit_privileged_commands: true        # track privileged cmds
+audit_network_changes: false
+audit_kernel_modules: false
+audit_sudo_changes: true
+audit_time_changes: true

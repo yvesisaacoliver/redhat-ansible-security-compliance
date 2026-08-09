@@ -1,0 +1,37 @@
+---
+# ══════════════════════════════════════════════
+# Role: SELinux Enforcement (CIS 1.6)
+# Enforcing + targeted in ALL environments
+# ══════════════════════════════════════════════
+
+- name: "SELINUX [{{ env_name }}] | Instalar pacotes"
+  ansible.builtin.dnf:
+    name:
+      - libselinux
+      - policycoreutils
+      - selinux-policy-targeted
+    state: present
+
+- name: "SELINUX [{{ env_name }}] | Verificar status"
+  ansible.builtin.command: getenforce
+  register: _selinux_status
+  changed_when: false
+
+- name: "SELINUX [{{ env_name }}] | Status atual: {{ _selinux_status.stdout }}"
+  ansible.builtin.debug:
+    msg: "SELinux: {{ _selinux_status.stdout }}"
+
+- name: "SELINUX [{{ env_name }}] | Ativar Enforcing"
+  ansible.posix.selinux:
+    policy: "{{ selinux_policy }}"
+    state: "{{ selinux_state }}"
+  when: _selinux_status.stdout != "Enforcing"
+
+- name: "SELINUX [{{ env_name }}] | Garantir config persistente"
+  ansible.builtin.lineinfile:
+    path: /etc/selinux/config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  loop:
+    - { regexp: '^SELINUX=', line: 'SELINUX=enforcing' }
+    - { regexp: '^SELINUXTYPE=', line: 'SELINUXTYPE=targeted' }
